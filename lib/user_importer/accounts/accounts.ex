@@ -21,6 +21,11 @@ defmodule UserImporter.Accounts do
     Repo.all(User)
   end
 
+  def list_users_with_roles do
+    list_users()
+    |> Repo.preload(:roles)
+  end
+
   @doc """
   Gets a single user.
 
