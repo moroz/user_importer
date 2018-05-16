@@ -22,12 +22,25 @@ defmodule UserImporter.Accounts.User do
   def user_id(user) do
     base = "https://buddy.buddyandselly.com" <> Integer.to_string(user.id)
 
-    digest =
-      :crypto.hash(:sha, base)
-      |> Base.encode16(case: :lower)
-      |> String.slice(0, 23)
+    :crypto.hash(:sha, base)
+    |> Base.encode16(case: :lower)
+    |> String.slice(0, 23)
+  end
 
-    "buddy|" <> digest
+  def to_auth0_request(user) do
+    user = user |> UserImporter.Repo.preload(:roles)
+
+    %{
+      "user_id" => user_id(user),
+      "connection" => "Username-Password-Authentication",
+      "email" => user.email,
+      "verify_email" => false,
+      "app_metadata" => %{
+        "display_name" => user.display_name,
+        "buddy_id" => user.id,
+        "roles" => role_names(user)
+      }
+    }
   end
 
   def username(user) do

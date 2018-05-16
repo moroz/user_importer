@@ -20,7 +20,7 @@ defmodule UserImporter.Mixfile do
   def application do
     [
       mod: {UserImporter.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger, :runtime_tools, :not_qwerty123]
     ]
   end
 
@@ -42,7 +42,8 @@ defmodule UserImporter.Mixfile do
       {:gettext, "~> 0.11"},
       {:cowboy, "~> 1.0"},
       {:uuid, "~> 1.1"},
-      {:httpoison, "~> 1.1.1"}
+      {:httpoison, "~> 1.1.1"},
+      {:not_qwerty123, "~> 2.2"}
     ]
   end
 

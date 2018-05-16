@@ -12,6 +12,7 @@ defmodule UserImporter.Application do
       supervisor(UserImporter.Repo, []),
       # Start the endpoint when the application starts
       supervisor(UserImporterWeb.Endpoint, []),
+      worker(UserImporter.Auth0Client, [])
       # Start your own worker by calling: UserImporter.Worker.start_link(arg1, arg2, arg3)
       # worker(UserImporter.Worker, [arg1, arg2, arg3]),
     ]
