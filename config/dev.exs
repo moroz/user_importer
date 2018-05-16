@@ -64,4 +64,5 @@ config :user_importer, UserImporter.Repo,
   password: "7R2h2djZ",
   database: "buddy_development",
   hostname: "localhost",
-  pool_size: 10
+  pool_size: 10,
+  migration_source: "ecto_migrations"
