@@ -6,7 +6,7 @@ defmodule UserImporter.Auth0Client do
   alias UserImporter.Accounts.User
 
   defmodule State do
-    defstruct token: nil
+    defstruct auth0_token: nil, authorization_token: nil
   end
 
   def start_link() do
@@ -14,7 +14,15 @@ defmodule UserImporter.Auth0Client do
   end
 
   def init([]) do
-    {:ok, %State{token: load_token()}}
+    {:ok,
+     %State{
+       auth0_token: load_token(),
+       authorization_token: fetch_authorization_token()
+     }}
+  end
+
+  def status do
+    GenServer.call(__MODULE__, :status)
   end
 
   def list_users do
@@ -33,9 +41,13 @@ defmodule UserImporter.Auth0Client do
     GenServer.call(__MODULE__, {:create_user, json_request})
   end
 
+  def handle_call(:status, _from, state) do
+    {:reply, state, state}
+  end
+
   def handle_call({:create_user, body}, _from, state) do
     case post(resolve_url("/users"), body, headers(state)) do
-      {:ok, res = %HTTPoison.Response{body: _body, status_code: status_code}}
+      {:ok, %HTTPoison.Response{body: _body, status_code: status_code}}
       when status_code >= 200 and status_code < 400 ->
         {:reply, true, state}
 
@@ -97,17 +109,50 @@ defmodule UserImporter.Auth0Client do
   end
 
   defp resolve_url(endpoint) when is_bitstring(endpoint) do
-    base_url() <> endpoint
+    api_url() <> endpoint
   end
 
-  defp base_url, do: "https://buddy-test.eu.auth0.com/api/v2"
+  defp api_url do
+    base_url() <> "/api/v2"
+  end
 
-  defp headers(%State{token: token}) do
-    [{"Authorization", "Bearer #{token}"}, {"Content-type", "application/json"}]
+  defp base_url do
+    "https://" <> auth0_config().domain
+  end
+
+  defp authorization_url, do: authorization_config().base_url
+
+  defp content_type_header, do: [{"Content-type", "application/json"}]
+
+  defp headers(%State{auth0_token: token}) do
+    [{"Authorization", "Bearer #{token}"} | content_type_header()]
   end
 
   defp load_token do
     Path.expand("../token.txt", File.cwd!())
     |> File.read!()
+  end
+
+  defp auth0_config, do: Application.get_env(:user_importer, :auth0)
+
+  defp authorization_config, do: Application.get_env(:user_importer, :authorization)
+
+  defp fetch_authorization_token do
+    req_body =
+      %{
+        "grant_type" => "client_credentials",
+        "client_id" => authorization_config().client_id,
+        "client_secret" => authorization_config().client_secret,
+        "audience" => authorization_config().audience
+      }
+      |> Poison.encode!()
+
+    case post(base_url() <> "/oauth/token", req_body, content_type_header()) do
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+        body |> Poison.decode!() |> Map.fetch!("access_token")
+
+      _ ->
+        raise "Fetching API token failed miserably"
+    end
   end
 end
