@@ -19,20 +19,29 @@ defmodule UserImporter.Accounts.User do
     %{user | roles: role_names}
   end
 
+  def user_id(user) do
+    base = "https://buddy.buddyandselly.com" <> Integer.to_string(user.id)
+
+    digest =
+      :crypto.hash(:sha, base)
+      |> Base.encode16(case: :lower)
+      |> String.slice(0, 23)
+
+    "buddy|" <> digest
+  end
+
+  def username(user) do
+    user.email |> String.split("@") |> List.first()
+  end
+
+  def role_names(user) do
+    user.roles |> Enum.map(fn role -> role.title end)
+  end
+
   @doc false
   def changeset(user, attrs) do
     user
     |> cast(attrs, [])
     |> validate_required([])
-  end
-
-  defimpl Poison.Encoder, for: User do
-    def encode(user, options) do
-      user
-      |> User.encode_roles()
-      |> Map.delete(:__meta__)
-      |> Map.delete(:__struct__)
-      |> Poison.Encoder.Map.encode(options)
-    end
   end
 end
