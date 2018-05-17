@@ -53,49 +53,51 @@ defmodule UserImporter.Accounts do
   end
 
   def delete_in_auth0(users) when is_list(users) do
-    delete_in_auth0(users, %{failure: 0, success: 0})
+    users
+    |> each_with_stats(&delete_in_auth0/1)
   end
 
-  def delete_in_auth0(%User{} = user) do
-    case Auth0Client.delete_user("auth0|" <> user.user_id) do
-      true ->
+  def delete_in_auth0(%Auth0User{} = user) do
+    case GenServer.call(Auth0Client, {:delete_user, "auth0|#{user.user_id}"}) do
+      :ok ->
         Repo.delete(user)
         true
 
-      false ->
-        Elixir.Logger.log(:error, "Deleting user #{user.buddy_id} failed")
+      {:error, error} ->
+        Elixir.Logger.log(:error, "Deleting user #{user.buddy_id} failed #{error_msg(error)}")
         false
-    end
-  end
-
-  defp delete_in_auth0([user | rest], stats = %{failure: failure, success: success}) do
-    case delete_in_auth0(user) do
-      true ->
-        delete_in_auth0(rest, %{stats | success: success + 1})
-
-      false ->
-        delete_in_auth0(rest, %{stats | failure: failure + 1})
     end
   end
 
   defp delete_in_auth0([], stats), do: stats
 
-  def export_users(users) do
-    users = Repo.preload(users, :roles)
-    export_users(users, %{failure: 0, success: 0})
+  def export_users(users) when is_list(users) do
+    users
+    |> each_with_stats(&export_user/1)
   end
 
-  defp export_users([user | rest], stats = %{failure: failure, success: success}) do
-    case export_user(user) do
-      false ->
-        export_users(rest, %{stats | failure: failure + 1})
+  def each_with_stats(list, fun), do: each_with_stats(list, fun, %{success: 0, failure: 0})
 
-      _ ->
-        export_users(rest, %{stats | success: success + 1})
+  defp each_with_stats([elem | rest], fun, stats = %{success: success, failure: failure}) do
+    case fun.(elem) do
+      val when val in [true, :ok] ->
+        each_with_stats(rest, fun, %{stats | success: success + 1})
+
+      val when val in [false, nil] ->
+        each_with_stats(rest, fun, %{stats | failure: failure + 1})
     end
   end
 
-  defp export_users([], stats), do: stats
+  defp each_with_stats([], fun, stats), do: stats
+
+  def export_roles(users) when is_list(users) do
+    users |> Repo.preload(:roles) |> each_with_stats(&export_roles/1)
+  end
+
+  def export_roles(user) do
+    user = Repo.preload(user, :roles)
+    GenServer.call(Auth0Client, {:add_roles, user, user.roles})
+  end
 
   def create_auth0_user(attrs = %{}) do
     changeset = Auth0User.changeset(%Auth0User{}, attrs)
@@ -110,21 +112,29 @@ defmodule UserImporter.Accounts do
   end
 
   def export_user(user) do
-    password = NotQwerty123.RandomPassword.gen_password(length: 10)
+    req_body = user |> User.to_auth0_request()
 
-    req_body =
-      user |> User.to_auth0_request() |> Map.put("password", password) |> Poison.encode!()
-
-    case Auth0Client.create_user(req_body) do
+    case Auth0Client.create_user(Poison.encode!(req_body)) do
       {:ok, _} ->
         create_auth0_user(%{
-          "password" => password,
+          "password" => req_body["password"],
           "buddy_id" => user.id,
           "user_id" => User.user_id(user)
         })
 
-      {:error, _} ->
+        true
+
+      {:error, error} ->
+        Elixir.Logger.log(:error, "Export of user #{user.email} failed #{error_msg(error)}")
         false
     end
+  end
+
+  defp error_msg(%{"error" => error, "message" => msg, "statusCode" => status}) do
+    "(#{status}): #{error}, #{msg}"
+  end
+
+  defp error_msg(%{"error" => error, "statusCode" => status}) do
+    "(#{status}): #{error}"
   end
 end

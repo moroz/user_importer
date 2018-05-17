@@ -1,11 +1,13 @@
 defmodule UserImporter.Accounts.Auth0User do
   use Ecto.Schema
   import Ecto.Changeset
+  alias UserImporter.Accounts.{Role, User}
 
   schema "auth0_users" do
     field(:buddy_id, :integer)
     field(:password, :string)
     field(:user_id, :string)
+    has_many(:roles, Role, foreign_key: :user_id, references: :buddy_id)
 
     timestamps()
   end

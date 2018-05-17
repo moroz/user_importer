@@ -4,7 +4,8 @@ defmodule UserImporter.Auth0Client do
   require Elixir.Logger
   alias Elixir.Logger
 
-  alias UserImporter.Repo
+  alias HTTPoison.Response
+
   alias UserImporter.Accounts.{User, Auth0User, Role}
 
   defmodule State do
@@ -27,30 +28,12 @@ defmodule UserImporter.Auth0Client do
     GenServer.call(__MODULE__, :list_users)
   end
 
-  def delete_user(user_id) do
-    GenServer.call(__MODULE__, {:delete_user, user_id})
-  end
-
-  defp delete_user(user_id, state) do
-    delete(endpoint("/users/#{user_id}"), headers(state))
-    |> handle_response!(state)
-  end
-
   def delete_users do
     GenServer.call(__MODULE__, :delete_users)
   end
 
   def create_user(json_request) do
     GenServer.call(__MODULE__, {:create_user, json_request})
-  end
-
-  def add_roles(user, roles) do
-    GenServer.call(__MODULE__, {:add_roles, user, roles})
-  end
-
-  def export_roles(user) do
-    user = Repo.preload(user, :roles)
-    add_roles(user, user.roles)
   end
 
   def list_roles(user) do
@@ -68,8 +51,10 @@ defmodule UserImporter.Auth0Client do
 
   def handle_call(:delete_users, _from, state) do
     list_users(state)
+    |> IO.inspect()
     |> Enum.map(fn user -> Map.get(user, "user_id") end)
     |> Enum.reject(&is_nil(&1))
+    |> IO.inspect()
     |> Enum.each(&delete_user(&1, state))
 
     {:reply, :ok, state}
@@ -80,8 +65,11 @@ defmodule UserImporter.Auth0Client do
   end
 
   def handle_call({:delete_user, user_id}, _from, state) do
-    delete(endpoint("/users/#{user_id}"), headers(state))
-    |> handle_response!(state)
+    delete_user(user_id, state)
+  end
+
+  def handle_call({:add_roles, user, []}, _from, state) do
+    {:reply, true, state}
   end
 
   def handle_call({:add_roles, user, roles}, _from, state) do
@@ -96,18 +84,19 @@ defmodule UserImporter.Auth0Client do
     |> handle_response(state)
   end
 
-  defp handle_response({:ok, %HTTPoison.Response{body: body, status_code: status}}, state)
+  defp delete_user(user_id, state) do
+    delete(endpoint("/users/#{user_id}"), headers(state))
+    |> handle_response(state)
+  end
+
+  defp handle_response({:ok, %Response{status_code: 204}}, state), do: {:reply, :ok, state}
+
+  defp handle_response({:ok, %Response{body: body, status_code: status}}, state)
        when status >= 200 and status <= 304,
        do: {:reply, {:ok, Poison.decode!(body)}, state}
 
   defp handle_response({_, %{body: body}}, state),
     do: {:reply, {:error, Poison.decode!(body)}, state}
-
-  defp handle_response!({:ok, %HTTPoison.Response{body: _body, status_code: status}}, state)
-       when status >= 200 and status <= 304,
-       do: {:reply, true, state}
-
-  defp handle_response!(_, state), do: {:reply, false, state}
 
   defp role_endpoint(%Auth0User{user_id: user_id}), do: role_endpoint(user_id)
 
@@ -118,7 +107,7 @@ defmodule UserImporter.Auth0Client do
   defp role_endpoint(user_id), do: endpoint(:authorization, "/users/auth0|#{user_id}/roles")
 
   defp list_users(state) do
-    {:ok, %HTTPoison.Response{body: body}} = get(endpoint("/users?per_page=100"), headers(state))
+    {:ok, %Response{body: body}} = get(endpoint("/users?per_page=100"), headers(state))
     Poison.decode!(body)
   end
 
@@ -167,7 +156,7 @@ defmodule UserImporter.Auth0Client do
       |> Poison.encode!()
 
     case post(url, req_body, content_type_header()) do
-      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+      {:ok, %Response{status_code: 200, body: body}} ->
         body |> Poison.decode!() |> Map.fetch!("access_token")
 
       _ ->
