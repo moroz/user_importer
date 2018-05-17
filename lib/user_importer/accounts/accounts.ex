@@ -116,19 +116,14 @@ defmodule UserImporter.Accounts do
       user |> User.to_auth0_request() |> Map.put("password", password) |> Poison.encode!()
 
     case Auth0Client.create_user(req_body) do
-      true ->
+      {:ok, _} ->
         create_auth0_user(%{
           "password" => password,
           "buddy_id" => user.id,
           "user_id" => User.user_id(user)
         })
 
-      {:error, %{body: body}} ->
-        error = body |> Poison.decode!() |> Map.fetch!("error")
-        Elixir.Logger.log(:error, "Export failed for user #{user.id}: #{error}")
-        false
-
-      _ ->
+      {:error, _} ->
         false
     end
   end

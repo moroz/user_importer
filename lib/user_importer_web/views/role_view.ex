@@ -17,7 +17,7 @@ defmodule UserImporterWeb.RoleView do
 
   def render("role.json", %{role: role_title}) do
     %{
-      "_id" => Role.uuid_for(role_title),
+      "_id" => UserImporter.Accounts.Role.uuid_for(role_title),
       "applicationType" => "client",
       "applicationId" => application_id(),
       "name" => role_title,

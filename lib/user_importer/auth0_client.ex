@@ -4,6 +4,9 @@ defmodule UserImporter.Auth0Client do
   require Elixir.Logger
   alias Elixir.Logger
 
+  alias UserImporter.Repo
+  alias UserImporter.Accounts.{User, Auth0User, Role}
+
   defmodule State do
     defstruct auth0_token: nil, authorization_token: nil
   end
@@ -28,6 +31,11 @@ defmodule UserImporter.Auth0Client do
     GenServer.call(__MODULE__, {:delete_user, user_id})
   end
 
+  defp delete_user(user_id, state) do
+    delete(endpoint("/users/#{user_id}"), headers(state))
+    |> handle_response!(state)
+  end
+
   def delete_users do
     GenServer.call(__MODULE__, :delete_users)
   end
@@ -36,80 +44,104 @@ defmodule UserImporter.Auth0Client do
     GenServer.call(__MODULE__, {:create_user, json_request})
   end
 
+  def add_roles(user, roles) do
+    GenServer.call(__MODULE__, {:add_roles, user, roles})
+  end
+
+  def export_roles(user) do
+    user = Repo.preload(user, :roles)
+    add_roles(user, user.roles)
+  end
+
+  def list_roles(user) do
+    GenServer.call(__MODULE__, {:list_roles, user})
+  end
+
   def handle_call(:status, _from, state) do
     {:reply, state, state}
   end
 
   def handle_call({:create_user, body}, _from, state) do
-    case post(resolve_url("/users"), body, headers(state)) do
-      {:ok, %HTTPoison.Response{body: _body, status_code: status_code}}
-      when status_code >= 200 and status_code < 400 ->
-        {:reply, true, state}
-
-      {:ok, response} ->
-        {:reply, {:error, response}, state}
-
-      _ ->
-        {:reply, :error, state}
-    end
+    post(endpoint("/users"), body, headers(state))
+    |> handle_response(state)
   end
 
   def handle_call(:delete_users, _from, state) do
     list_users(state)
     |> Enum.map(fn user -> Map.get(user, "user_id") end)
     |> Enum.reject(&is_nil(&1))
-    |> Enum.each(&delete_user/1)
+    |> Enum.each(&delete_user(&1, state))
 
     {:reply, :ok, state}
   end
 
   def handle_call(:list_users, _from, state) do
-    case list_users(state) do
-      response when is_list(response) ->
-        {:reply, response, state}
-
-      error ->
-        {:reply, {:error, error}, state}
-    end
+    list_users(state)
   end
 
   def handle_call({:delete_user, user_id}, _from, state) do
-    {:ok, %HTTPoison.Response{status_code: status_code}} =
-      delete(resolve_url("/users/#{user_id}"), headers(state))
-
-    case status_code do
-      status when status >= 200 and status <= 304 ->
-        {:reply, true, state}
-
-      _ ->
-        {:reply, false, state}
-    end
+    delete(endpoint("/users/#{user_id}"), headers(state))
+    |> handle_response!(state)
   end
+
+  def handle_call({:add_roles, user, roles}, _from, state) do
+    body = roles |> Enum.map(&Role.uuid_for(&1)) |> Poison.encode!()
+
+    patch(role_endpoint(user), body, headers(:authorization, state))
+    |> handle_response(state)
+  end
+
+  def handle_call({:list_roles, user}, _from, state) do
+    get(role_endpoint(user), headers(:authorization, state))
+    |> handle_response(state)
+  end
+
+  defp handle_response({:ok, %HTTPoison.Response{body: body, status_code: status}}, state)
+       when status >= 200 and status <= 304,
+       do: {:reply, {:ok, Poison.decode!(body)}, state}
+
+  defp handle_response({_, %{body: body}}, state),
+    do: {:reply, {:error, Poison.decode!(body)}, state}
+
+  defp handle_response!({:ok, %HTTPoison.Response{body: _body, status_code: status}}, state)
+       when status >= 200 and status <= 304,
+       do: {:reply, true, state}
+
+  defp handle_response!(_, state), do: {:reply, false, state}
+
+  defp role_endpoint(%Auth0User{user_id: user_id}), do: role_endpoint(user_id)
+
+  defp role_endpoint(user = %User{}) do
+    User.user_id(user) |> role_endpoint()
+  end
+
+  defp role_endpoint(user_id), do: endpoint(:authorization, "/users/auth0|#{user_id}/roles")
 
   defp list_users(state) do
-    case get(resolve_url("/users?per_page=100"), headers(state)) do
-      {:ok, %HTTPoison.Response{body: body}} ->
-        Poison.decode!(body)
-
-      error ->
-        {:error, error}
-    end
+    {:ok, %HTTPoison.Response{body: body}} = get(endpoint("/users?per_page=100"), headers(state))
+    Poison.decode!(body)
   end
 
-  defp resolve_url(endpoint) when is_bitstring(endpoint) do
-    api_url() <> endpoint
+  defp endpoint(:authorization, path) do
+    Application.get_env(:user_importer, :authorization_base_url) <> path
   end
 
-  defp api_url do
-    base_url() <> "/api/v2"
+  defp endpoint(path) do
+    Application.get_env(:user_importer, :auth0_base_url) <> "/api/v2" <> path
   end
-
-  defp base_url, do: Application.get_env(:user_importer, :auth0_base_url)
 
   defp content_type_header, do: [{"Content-type", "application/json"}]
 
+  defp headers(:authorization, %State{authorization_token: token}) do
+    [token_header(token) | content_type_header()]
+  end
+
   defp headers(%State{auth0_token: token}) do
-    [{"Authorization", "Bearer #{token}"} | content_type_header()]
+    [token_header(token) | content_type_header()]
+  end
+
+  defp token_header(token) do
+    {"Authorization", "Bearer #{token}"}
   end
 
   defp fetch_tokens(
