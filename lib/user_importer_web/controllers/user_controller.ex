@@ -7,7 +7,7 @@ defmodule UserImporterWeb.UserController do
   action_fallback(UserImporterWeb.FallbackController)
 
   def index(conn, _params) do
-    users = Accounts.list_users_with_roles()
+    users = Accounts.list_users() |> Repo.preload(:roles)
     render(conn, "index.json", users: users)
   end
 

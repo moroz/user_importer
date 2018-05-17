@@ -4,9 +4,10 @@ defmodule UserImporter.Accounts do
   """
 
   import Ecto.Query, warn: false
-  alias UserImporter.Repo
+  alias UserImporter.{Repo, Auth0Client}
 
   alias UserImporter.Accounts.{User, Role, Auth0User}
+  require Elixir.Logger
 
   @doc """
   Returns the list of users.
@@ -19,12 +20,6 @@ defmodule UserImporter.Accounts do
   """
   def list_users do
     Repo.all(User)
-  end
-
-  def list_users_with_roles do
-    from(u in User, order_by: [desc: :id], limit: 25)
-    |> Repo.all()
-    |> Repo.preload(:roles)
   end
 
   @doc """
@@ -53,23 +48,54 @@ defmodule UserImporter.Accounts do
 
   def get_role!(id), do: Repo.get!(Role, id)
 
-  def export_users(users) do
-    export_users(users, 0, 0)
+  def delete_all_in_auth0 do
+    Repo.all(Auth0User) |> delete_in_auth0
   end
 
-  defp export_users([user | rest], success_count, failure_count) do
-    case export_user(user) do
-      false ->
-        export_users(rest, success_count, failure_count + 1)
+  def delete_in_auth0(users) when is_list(users) do
+    delete_in_auth0(users, %{failure: 0, success: 0})
+  end
 
-      _ ->
-        export_users(rest, success_count + 1, failure_count)
+  def delete_in_auth0(%User{} = user) do
+    case Auth0Client.delete_user("auth0|" <> user.user_id) do
+      true ->
+        Repo.delete(user)
+        true
+
+      false ->
+        Elixir.Logger.log(:error, "Deleting user #{user.buddy_id} failed")
+        false
     end
   end
 
-  defp export_users([], success_count, failure_count) do
-    %{success: success_count, failure: failure_count}
+  defp delete_in_auth0([user | rest], stats = %{failure: failure, success: success}) do
+    case delete_in_auth0(user) do
+      true ->
+        delete_in_auth0(rest, %{stats | success: success + 1})
+
+      false ->
+        delete_in_auth0(rest, %{stats | failure: failure + 1})
+    end
   end
+
+  defp delete_in_auth0([], stats), do: stats
+
+  def export_users(users) do
+    users = Repo.preload(users, :roles)
+    export_users(users, %{failure: 0, success: 0})
+  end
+
+  defp export_users([user | rest], stats = %{failure: failure, success: success}) do
+    case export_user(user) do
+      false ->
+        export_users(rest, %{stats | success: success + 1})
+
+      _ ->
+        export_users(rest, %{stats | failure: failure + 1})
+    end
+  end
+
+  defp export_users([], stats), do: stats
 
   def create_auth0_user(attrs = %{}) do
     changeset = Auth0User.changeset(%Auth0User{}, attrs)
@@ -89,13 +115,18 @@ defmodule UserImporter.Accounts do
     req_body =
       user |> User.to_auth0_request() |> Map.put("password", password) |> Poison.encode!()
 
-    case UserImporter.Auth0Client.create_user(req_body) do
+    case Auth0Client.create_user(req_body) do
       true ->
         create_auth0_user(%{
           "password" => password,
           "buddy_id" => user.id,
           "user_id" => User.user_id(user)
         })
+
+      {:error, %{body: body}} ->
+        error = body |> Poison.decode!() |> Map.fetch!("error")
+        Elixir.Logger.log(:error, "Export failed for user #{user.id}: #{error}")
+        false
 
       _ ->
         false
