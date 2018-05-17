@@ -88,10 +88,10 @@ defmodule UserImporter.Accounts do
   defp export_users([user | rest], stats = %{failure: failure, success: success}) do
     case export_user(user) do
       false ->
-        export_users(rest, %{stats | success: success + 1})
+        export_users(rest, %{stats | failure: failure + 1})
 
       _ ->
-        export_users(rest, %{stats | failure: failure + 1})
+        export_users(rest, %{stats | success: success + 1})
     end
   end
 
