@@ -1,7 +1,7 @@
 defmodule UserImporter.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
-  alias UserImporter.Accounts.{Role, User}
+  alias UserImporter.Accounts.Role
 
   schema "users" do
     field(:email, :string)

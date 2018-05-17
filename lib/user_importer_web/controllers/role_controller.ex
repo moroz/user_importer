@@ -2,7 +2,6 @@ defmodule UserImporterWeb.RoleController do
   use UserImporterWeb, :controller
 
   alias UserImporter.Accounts
-  alias UserImporter.Accounts.Role
 
   action_fallback(UserImporterWeb.FallbackController)
 

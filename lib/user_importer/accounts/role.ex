@@ -16,4 +16,12 @@ defmodule UserImporter.Accounts.Role do
     |> cast(attrs, [])
     |> validate_required([])
   end
+
+  def uuid_for(role_title) when is_bitstring(role_title) do
+    UUID.uuid5(:dns, "https://buddy.buddyandselly.com" <> role_title)
+  end
+
+  def uuid_for(%__MODULE__{title: title}) do
+    uuid_for(title)
+  end
 end

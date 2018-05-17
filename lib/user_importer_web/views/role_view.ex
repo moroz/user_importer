@@ -17,16 +17,12 @@ defmodule UserImporterWeb.RoleView do
 
   def render("role.json", %{role: role_title}) do
     %{
-      "_id" => uuid_for(role_title),
+      "_id" => Role.uuid_for(role_title),
       "applicationType" => "client",
       "applicationId" => application_id(),
       "name" => role_title,
       "description" => description_for(role_title)
     }
-  end
-
-  defp uuid_for(role_title) when is_bitstring(role_title) do
-    UUID.uuid5(:dns, "https://buddy.buddyandselly.com" <> role_title)
   end
 
   defp application_id, do: "5MiVt4VuSUQaNgp13D0QFqXOd1Jst4QH"
