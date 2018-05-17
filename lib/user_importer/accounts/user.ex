@@ -1,7 +1,7 @@
 defmodule UserImporter.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
-  alias UserImporter.Accounts.Role
+  alias UserImporter.Accounts.{Role, Auth0User}
 
   schema "users" do
     field(:email, :string)
@@ -10,6 +10,7 @@ defmodule UserImporter.Accounts.User do
     field(:country, :string)
     field(:phone, :string)
     has_many(:roles, Role)
+    has_one(:auth0_user, Auth0User, foreign_key: :buddy_id)
 
     timestamps(inserted_at: :created_at, updated_at: :updated_at)
   end
@@ -33,6 +34,7 @@ defmodule UserImporter.Accounts.User do
     %{
       "user_id" => user_id(user),
       "connection" => "Username-Password-Authentication",
+      "password" => gen_password(),
       "email" => user.email,
       "verify_email" => false,
       "app_metadata" => %{
@@ -41,6 +43,16 @@ defmodule UserImporter.Accounts.User do
         "roles" => role_names(user)
       }
     }
+  end
+
+  defp gen_password do
+    password = NotQwerty123.RandomPassword.gen_password(length: 12)
+
+    if password =~ ~r/\d/ && password =~ ~r/[A-Z]/ && password =~ ~r/[a-z]/ do
+      password
+    else
+      gen_password()
+    end
   end
 
   def username(user) do
