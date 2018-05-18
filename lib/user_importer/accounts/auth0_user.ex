@@ -8,6 +8,7 @@ defmodule UserImporter.Accounts.Auth0User do
     field(:password, :string)
     field(:user_id, :string)
     has_many(:roles, Role, foreign_key: :user_id, references: :buddy_id)
+    belongs_to(:user, User, foreign_key: :buddy_id, define_field: false)
 
     timestamps()
   end
