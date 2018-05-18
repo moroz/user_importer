@@ -8,15 +8,16 @@ defmodule UserImporter.Auth0Client.Management do
 
   ## OTP API
 
-  def start_link(%{management_token: token}) do
-    GenServer.start_link(__MODULE__, nil, %WorkerState{token: token})
+  def start_link(_) do
+    GenServer.start_link(__MODULE__, :ok, [])
   end
 
-  def init(%WorkerState{token: token}) when is_nil(token), do: {:stop, {:error, :no_token}}
-
-  def init(state = %WorkerState{}) do
-    {:ok, state}
+  def init(:ok) do
+    %{management_token: token} = UserImporter.Auth0Client.get_config()
+    {:ok, %WorkerState{token: token}}
   end
+
+  def create_user(pid, req_body), do: GenServer.call(pid, {:create_user, req_body})
 
   ## HTTPoison.Base functions
 

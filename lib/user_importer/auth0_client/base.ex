@@ -8,7 +8,7 @@ defmodule UserImporter.Auth0Client.Base do
       alias UserImporter.Auth0Client.WorkerState
 
       def process_request_headers(headers) do
-        headers
+        set_headers(headers)
         |> Keyword.put(:"Content-type", "application/json")
       end
 
@@ -18,7 +18,7 @@ defmodule UserImporter.Auth0Client.Base do
       def request(method, url, headers, body, opts) do
         {time, res} =
           :timer.tc(fn ->
-            super(method, url, headers, body, opts)
+            super(method, url, headers, encode_body(body), opts)
           end)
 
         {_, %{status_code: status}} = res
@@ -29,6 +29,15 @@ defmodule UserImporter.Auth0Client.Base do
 
         res
       end
+
+      defp set_headers(val) when is_bitstring(val) do
+        [{"Authorization", "Bearer #{val}"}]
+      end
+
+      defp set_headers(val), do: val
+
+      defp encode_body(body) when is_bitstring(body), do: body
+      defp encode_body(body), do: Poison.encode!(body)
     end
   end
 end

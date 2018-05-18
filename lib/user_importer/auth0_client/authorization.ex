@@ -2,14 +2,29 @@ defmodule UserImporter.Auth0Client.Authorization do
   use GenServer
   use UserImporter.Auth0Client.Base
 
+  alias UserImporter.Accounts.Role
+
   @endpoint Application.get_env(:user_importer, :authorization_base_url)
 
   ## OTP API
 
-  def init(%{authorization_token: token}) when is_nil(token), do: {:stop, {:error, :no_token}}
+  def start_link(_) do
+    GenServer.start_link(__MODULE__, :ok, [])
+  end
 
-  def init(%{authorization_token: token}) do
+  def init(:ok) do
+    %{authorization_token: token} = UserImporter.Auth0Client.get_config()
     {:ok, %WorkerState{token: token}}
+  end
+
+  ## Public API
+
+  def list_roles(pid, user) do
+    GenServer.call(pid, {:list_roles, user})
+  end
+
+  def add_roles(pid, user, role_ids) do
+    GenServer.call(pid, {:add_roles, user, role_ids})
   end
 
   ## HTTPoison.Base functions
@@ -24,15 +39,13 @@ defmodule UserImporter.Auth0Client.Authorization do
     {:reply, true, state}
   end
 
-  def handle_call({:add_roles, user, roles}, _from, state = %{token: token}) do
-    body = roles |> Enum.map(&Role.uuid_for(&1)) |> Poison.encode!()
-
-    patch(user, body, token_header(token))
+  def handle_call({:add_roles, user, role_ids}, _from, state = %{token: token}) do
+    patch(user, role_ids, token)
     |> handle_response(state)
   end
 
   def handle_call({:list_roles, user}, _from, state = %{token: token}) do
-    get(user, token_header(token))
+    get(user, token)
     |> handle_response(state)
   end
 end
