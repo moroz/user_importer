@@ -15,16 +15,18 @@ defmodule UserImporter.Auth0Client.Base do
       def process_response_body(body) when body in [nil, ""], do: nil
       def process_response_body(body), do: Poison.decode!(body)
 
-      def request(method, url, headers, body, opts) do
+      def request(method, url, body, headers, opts) do
         {time, res} =
           :timer.tc(fn ->
-            super(method, url, headers, encode_body(body), opts)
+            super(method, url, encode_body(body), headers, opts)
           end)
 
         {_, %{status_code: status}} = res
 
         Elixir.Logger.info(
-          "[http] #{String.upcase(to_string(method))} #{url} #{status} in #{time} us"
+          "[http] #{String.upcase(to_string(method))} #{url} #{status} in #{
+            UserImporter.Exports.Helper.readable_interval(time)
+          }"
         )
 
         res
@@ -36,8 +38,8 @@ defmodule UserImporter.Auth0Client.Base do
 
       defp set_headers(val), do: val
 
-      defp encode_body(body) when is_bitstring(body), do: body
-      defp encode_body(body), do: Poison.encode!(body)
+      defp encode_body(body) when is_map(body) or is_list(body), do: Poison.encode!(body)
+      defp encode_body(body), do: body
     end
   end
 end

@@ -2,8 +2,6 @@ defmodule UserImporter.Auth0Client.Authorization do
   use GenServer
   use UserImporter.Auth0Client.Base
 
-  alias UserImporter.Accounts.Role
-
   @endpoint Application.get_env(:user_importer, :authorization_base_url)
 
   ## OTP API

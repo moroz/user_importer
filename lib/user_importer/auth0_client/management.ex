@@ -17,7 +17,13 @@ defmodule UserImporter.Auth0Client.Management do
     {:ok, %WorkerState{token: token}}
   end
 
+  ## Public API
+
+  def list_users(pid), do: GenServer.call(pid, :list_users)
+
   def create_user(pid, req_body), do: GenServer.call(pid, {:create_user, req_body})
+
+  def delete_user(pid, user_id), do: GenServer.call(pid, {:delete_user, user_id})
 
   ## HTTPoison.Base functions
 
@@ -27,8 +33,9 @@ defmodule UserImporter.Auth0Client.Management do
 
   ## Callbacks
 
-  def handle_call(:list_users, _from, state) do
-    list_users(state)
+  def handle_call(:list_users, _from, state = %{token: token}) do
+    {:ok, %Response{body: body}} = get("/users?per_page=100", token)
+    {:reply, body, state}
   end
 
   def handle_call({:create_user, body}, _from, state = %{token: token}) do
@@ -36,30 +43,8 @@ defmodule UserImporter.Auth0Client.Management do
     |> handle_response(state)
   end
 
-  def handle_call(:delete_users, _from, state) do
-    list_users(state)
-    |> IO.inspect()
-    |> Enum.map(fn user -> Map.get(user, "user_id") end)
-    |> Enum.reject(&is_nil(&1))
-    |> IO.inspect()
-    |> Enum.each(&delete_user(&1, state))
-
-    {:reply, :ok, state}
-  end
-
-  def handle_call({:delete_user, user_id}, _from, state) do
-    delete_user(user_id, state)
-  end
-
-  ## Private functions
-
-  defp list_users(%{token: token}) do
-    {:ok, %Response{body: body}} = get("/users?per_page=100", token)
-    Poison.decode!(body)
-  end
-
-  defp delete_user(user_id, state = %{token: token}) do
-    delete("/users/#{user_id}", token)
+  def handle_call({:delete_user, user_id}, _from, state = %{token: token}) do
+    delete("/users/auth0|#{user_id}", token)
     |> handle_response(state)
   end
 end

@@ -1,14 +1,27 @@
 defmodule UserImporter.Exports.Roles do
-  alias UserImporter.{Repo, Accounts}
-  alias UserImporter.Accounts.{Auth0User, Role}
+  alias UserImporter.Repo
+  alias UserImporter.Accounts.Role
   import UserImporter.Exports.Helper
   require Elixir.Logger
   alias UserImporter.Auth0Client.Authorization
 
   @timeout 60000
 
+  def list_roles(user) do
+    :poolboy.transaction(
+      :authorization,
+      fn pid -> Authorization.list_roles(pid, user) end,
+      @timeout
+    )
+  end
+
   def export_roles(users) when is_list(users) do
-    users |> Repo.preload(:roles) |> each_with_stats(&export_roles/1)
+    measure_time(fn ->
+      users
+      |> Repo.preload(:roles)
+      |> Enum.map(fn user -> Task.async(fn -> export_roles(user, user.roles) end) end)
+      |> Enum.map(&Task.await/1)
+    end)
   end
 
   def export_roles(user) do
