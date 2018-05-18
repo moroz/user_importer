@@ -31,16 +31,8 @@ defmodule UserImporter.Auth0Client do
     {:ok, fetch_tokens(Application.get_env(:user_importer, :api_credentials))}
   end
 
-  def status do
+  def get_config do
     GenServer.call(__MODULE__, :status)
-  end
-
-  def handle_call(:start_authorization_client, _from, state) do
-    {:reply, GenServer.start_link(UserImporter.Auth0Client.Authorization, state, []), state}
-  end
-
-  def handle_call(:start_management_client, _from, state) do
-    {:reply, GenServer.start_link(UserImporter.Auth0Client.UserExporter, state, []), state}
   end
 
   def handle_call(:status, _from, state) do
