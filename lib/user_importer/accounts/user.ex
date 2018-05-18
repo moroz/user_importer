@@ -70,3 +70,7 @@ defmodule UserImporter.Accounts.User do
     |> validate_required([])
   end
 end
+
+defimpl String.Chars, for: UserImporter.Accounts.User do
+  def to_string(user), do: UserImporter.Accounts.User.user_id(user)
+end

@@ -20,3 +20,7 @@ defmodule UserImporter.Accounts.Auth0User do
     |> validate_required([:user_id, :buddy_id, :password])
   end
 end
+
+defimpl String.Chars, for: UserImporter.Accounts.Auth0User do
+  def to_string(%UserImporter.Accounts.Auth0User{user_id: user_id}), do: user_id
+end
