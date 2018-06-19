@@ -37,8 +37,10 @@ defmodule UserImporter.Accounts.User do
       "password" => gen_password(),
       "email" => user.email,
       "verify_email" => false,
+      "user_metadata" => %{
+        "name" => user.display_name
+      },
       "app_metadata" => %{
-        "display_name" => user.display_name,
         "buddy_id" => user.id,
         "roles" => role_names(user)
       }

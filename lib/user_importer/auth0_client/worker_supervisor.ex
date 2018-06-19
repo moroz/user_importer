@@ -2,7 +2,7 @@ defmodule UserImporter.Auth0Client.WorkerSupervisor do
   use Supervisor
 
   defp def_config do
-    [size: 10, max_overflow: 0]
+    [size: 2, max_overflow: 0]
   end
 
   defp management_config do

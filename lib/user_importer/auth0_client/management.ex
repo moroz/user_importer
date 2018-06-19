@@ -5,6 +5,7 @@ defmodule UserImporter.Auth0Client.Management do
   alias HTTPoison.Response
 
   @endpoint Application.get_env(:user_importer, :management_base_url)
+  @timeout 60000
 
   ## OTP API
 
@@ -19,11 +20,13 @@ defmodule UserImporter.Auth0Client.Management do
 
   ## Public API
 
-  def list_users(pid), do: GenServer.call(pid, :list_users)
+  def list_users, do: transaction(fn pid -> GenServer.call(pid, :list_users) end)
 
-  def create_user(pid, req_body), do: GenServer.call(pid, {:create_user, req_body})
+  def create_user(req_body),
+    do: transaction(fn pid -> GenServer.call(pid, {:create_user, req_body}) end)
 
-  def delete_user(pid, user_id), do: GenServer.call(pid, {:delete_user, user_id})
+  def delete_user(user_id),
+    do: transaction(fn pid -> GenServer.call(pid, {:delete_user, user_id}) end)
 
   ## HTTPoison.Base functions
 
@@ -44,7 +47,15 @@ defmodule UserImporter.Auth0Client.Management do
   end
 
   def handle_call({:delete_user, user_id}, _from, state = %{token: token}) do
-    delete("/users/auth0|#{user_id}", token)
+    delete(delete_endpoint(user_id), token)
     |> handle_response(state)
   end
+
+  ## Private functions
+
+  defp delete_endpoint("auth0|" <> user_id), do: delete_endpoint(user_id)
+  defp delete_endpoint(user_id), do: "/users/auth0|#{user_id}"
+
+  defp transaction(fun) when is_function(fun),
+    do: :poolboy.transaction(:management, fun, @timeout)
 end

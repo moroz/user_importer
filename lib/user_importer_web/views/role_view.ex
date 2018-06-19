@@ -2,6 +2,11 @@ defmodule UserImporterWeb.RoleView do
   use UserImporterWeb, :view
   alias UserImporterWeb.RoleView
 
+  @application_id Application.fetch_env!(
+                    :user_importer,
+                    :api_credentials
+                  )[:authorization_application_id]
+
   def render("index.json", %{roles: roles}) do
     %{
       "configuration" => configuration_header(),
@@ -19,13 +24,11 @@ defmodule UserImporterWeb.RoleView do
     %{
       "_id" => UserImporter.Accounts.Role.uuid_for(role_title),
       "applicationType" => "client",
-      "applicationId" => application_id(),
+      "applicationId" => @application_id,
       "name" => role_title,
       "description" => description_for(role_title)
     }
   end
-
-  defp application_id, do: "5MiVt4VuSUQaNgp13D0QFqXOd1Jst4QH"
 
   defp description_for(role_title) do
     readable_name =
