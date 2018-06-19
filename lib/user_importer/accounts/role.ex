@@ -7,7 +7,7 @@ defmodule UserImporter.Accounts.Role do
     field(:title, :string)
     belongs_to(:user, User)
 
-    timestamps(inserted_at: :created_at)
+    timestamps()
   end
 
   @doc false

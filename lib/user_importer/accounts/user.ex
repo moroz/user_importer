@@ -12,7 +12,7 @@ defmodule UserImporter.Accounts.User do
     has_many(:roles, Role)
     has_one(:auth0_user, Auth0User, foreign_key: :buddy_id)
 
-    timestamps(inserted_at: :created_at, updated_at: :updated_at)
+    timestamps()
   end
 
   def encode_roles(user) do
