@@ -6,7 +6,7 @@ defmodule UserImporterWeb.RoleController do
   action_fallback(UserImporterWeb.FallbackController)
 
   def index(conn, _params) do
-    roles = Accounts.list_unique_role_titles()
+    roles = Accounts.roles_as_tuples()
     render(conn, "index.json", roles: roles)
   end
 

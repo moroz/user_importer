@@ -20,7 +20,7 @@ defmodule UserImporter.Exports.Roles do
       users
       |> Repo.preload(:roles)
       |> Enum.map(fn user -> Task.async(fn -> export_roles(user, user.roles) end) end)
-      |> Enum.map(&Task.await/1)
+      |> Enum.map(fn task -> Task.await(task, @timeout) end)
     end)
   end
 
@@ -32,7 +32,7 @@ defmodule UserImporter.Exports.Roles do
   defp export_roles(_user, []), do: true
 
   defp export_roles(user, roles) do
-    role_ids = Enum.map(roles, &Role.uuid_for(&1))
+    role_ids = UserImporter.RoleHelper.role_uuid_list(roles)
 
     :poolboy.transaction(
       :authorization,

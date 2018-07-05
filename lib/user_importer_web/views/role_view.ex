@@ -7,6 +7,8 @@ defmodule UserImporterWeb.RoleView do
                     :api_credentials
                   )[:authorization_application_id]
 
+  @multi_app_roles ["admin", "storage", "storage_mgr"]
+
   def render("index.json", %{roles: roles}) do
     %{
       "configuration" => configuration_header(),
@@ -20,14 +22,8 @@ defmodule UserImporterWeb.RoleView do
     render_one(role, RoleView, "role.json")
   end
 
-  def render("role.json", %{role: role_title}) do
-    %{
-      "_id" => UserImporter.Accounts.Role.uuid_for(role_title),
-      "applicationType" => "client",
-      "applicationId" => @application_id,
-      "name" => role_title,
-      "description" => description_for(role_title)
-    }
+  def render("role.json", %{role: role}) do
+    UserImporter.RoleHelper.to_json(role)
   end
 
   defp description_for(role_title) do
@@ -39,6 +35,10 @@ defmodule UserImporterWeb.RoleView do
       |> Enum.join(" ")
 
     readable_name <> " role."
+  end
+
+  defp client_id(app) do
+    Application.fetch_env!(:user_importer, :client_ids)[app]
   end
 
   defp configuration_header do

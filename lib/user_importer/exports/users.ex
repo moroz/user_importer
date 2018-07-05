@@ -19,17 +19,21 @@ defmodule UserImporter.Exports.Users do
 
   defp delete_all_in_auth0(auth0_users) when is_list(auth0_users) do
     case Enum.count(auth0_users) do
-      0 ->
+      c when c < 2 ->
         true
 
       _ ->
         auth0_users
-        |> Enum.each(fn %{"user_id" => user_id} ->
-          Task.async(fn -> Management.delete_user(user_id) end)
-        end)
+        |> Enum.each(&delete_single/1)
 
         delete_all_in_auth0()
     end
+  end
+
+  defp delete_single(%{"email" => "jannik@webionate.de"}), do: true
+
+  defp delete_single(%{"user_id" => user_id}) do
+    Task.async(fn -> Management.delete_user(user_id) end)
   end
 
   def export_users(users) when is_list(users) do
@@ -52,7 +56,7 @@ defmodule UserImporter.Exports.Users do
           "user_id" => User.user_id(user)
         })
 
-        Task.async(fn -> UserImporter.Exports.Roles.export_roles(user) end)
+        # Task.async(fn -> UserImporter.Exports.Roles.export_roles(user) end)
 
         true
 

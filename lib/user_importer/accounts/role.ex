@@ -3,6 +3,8 @@ defmodule UserImporter.Accounts.Role do
   import Ecto.Changeset
   alias UserImporter.Accounts.User
 
+  @client_ids Application.fetch_env!(:user_importer, :client_ids)
+
   schema "roles" do
     field(:title, :string)
     belongs_to(:user, User)
@@ -17,11 +19,7 @@ defmodule UserImporter.Accounts.Role do
     |> validate_required([])
   end
 
-  def uuid_for(role_title) when is_bitstring(role_title) do
-    UUID.uuid5(:dns, "https://buddy.buddyandselly.com" <> role_title)
-  end
-
-  def uuid_for(%__MODULE__{title: title}) do
-    uuid_for(title)
+  def uuid_for(role_title, client_id \\ @client_ids[:buddy]) when is_bitstring(role_title) do
+    UUID.uuid5(:dns, "" <> role_title)
   end
 end
